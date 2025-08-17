@@ -1,28 +1,29 @@
-const { ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
 const { loadConfig, saveConfig } = require('../utils/jsonHandler');
+const { ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
 
-module.exports = async function setStoreChannel(interaction) {
-    if(interaction.user.id !== process.env.OWNER_ID) return interaction.reply({ content: '🚫 ليس لديك صلاحية.', ephemeral: true });
+module.exports = async function setStoreChannel(interaction){
+    const channels = interaction.guild.channels.cache
+        .filter(c => c.isTextBased())
+        .map(c => ({ label: c.name, value: c.id }));
 
-    const channels = interaction.guild.channels.cache.filter(c => c.type === 0);
-    const options = channels.map(c => ({ label: c.name, value: c.id }));
-
-    const menu = new ActionRowBuilder().addComponents(
+    const row = new ActionRowBuilder().addComponents(
         new StringSelectMenuBuilder()
-            .setCustomId('store_channel_select')
+            .setCustomId('select_store_channel')
             .setPlaceholder('اختر قناة المتجر')
-            .addOptions(options)
+            .addOptions(channels.slice(0,25))
     );
 
-    await interaction.reply({ content: 'اختر قناة المتجر:', components: [menu], ephemeral: true });
+    await interaction.reply({ content: '📌 اختر قناة المتجر:', components: [row], ephemeral: true });
 
-    const filter = i => i.user.id === interaction.user.id && i.customId === 'store_channel_select';
-    const collector = interaction.channel.createMessageComponentCollector({ filter, max: 1, time: 60000 });
+    const filter = i => i.user.id === interaction.user.id && i.customId === 'select_store_channel';
+    const collector = interaction.channel.createMessageComponentCollector({ filter, time: 60000, max: 1 });
 
     collector.on('collect', i => {
+        const channelId = i.values[0];
         const config = loadConfig();
-        config.STORE_CHANNEL_ID = i.values[0];
+        config.STORE_CHANNEL_ID = channelId;
         saveConfig(config);
-        i.reply({ content: `✅ تم تعيين قناة المتجر: <#${i.values[0]}>`, ephemeral: true });
+
+        i.update({ content: `✅ تم تعيين قناة المتجر: <#${channelId}>`, components: [] });
     });
 };

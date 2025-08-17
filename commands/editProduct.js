@@ -1,62 +1,62 @@
-const { loadProducts, saveProducts } = require('../utils/jsonHandler');
-const logEvent = require('./logEvent');
-const { EmbedBuilder } = require('discord.js');
+const { loadProducts, saveProducts, loadConfig } = require('../utils/jsonHandler');
+const { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
 
-module.exports = async function editProduct(interaction, client) {
+module.exports = async function editProduct(interaction, client){
     const products = loadProducts();
-    if(products.length === 0) return interaction.reply({ content: '🚫 لا توجد منتجات.', ephemeral: true });
+    if(products.length === 0) return interaction.reply({ content: '🚫 لا يوجد منتجات للتعديل.', ephemeral: true });
 
-    let options = products.map(p => ({ label: p.name, value: p.id }));
-    const { ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
-
-    const menu = new ActionRowBuilder().addComponents(
+    const options = products.map(p => ({ label: p.name, value: p.id.toString() }));
+    const row = new ActionRowBuilder().addComponents(
         new StringSelectMenuBuilder()
-            .setCustomId('edit_product_select')
+            .setCustomId('select_edit_product')
             .setPlaceholder('اختر المنتج للتعديل')
             .addOptions(options)
     );
 
-    await interaction.reply({ content: 'اختر المنتج للتعديل:', components: [menu], ephemeral: true });
+    await interaction.reply({ content: '✏️ اختر المنتج لتعديله:', components: [row], ephemeral: true });
 
-    const filter = i => i.user.id === interaction.user.id && i.customId === 'edit_product_select';
-    const collector = interaction.channel.createMessageComponentCollector({ filter, max: 1, time: 60000 });
+    const filter = i => i.user.id === interaction.user.id && i.customId === 'select_edit_product';
+    const collector = interaction.channel.createMessageComponentCollector({ filter, time: 60000, max: 1 });
 
     collector.on('collect', async i => {
-        const product = products.find(p => p.id === i.values[0]);
-        if(!product) return i.reply({ content: '🚫 المنتج غير موجود', ephemeral: true });
+        const productId = i.values[0];
+        const product = products.find(p => p.id.toString() === productId);
+        if(!product) return i.update({ content: '🚫 لم يتم العثور على المنتج.', components: [] });
+
+        await i.update({ content: `✏️ أرسل الاسم الجديد للمنتج (**${product.name}**) أو ضع "-" لتبقي كما هو:`, components: [] });
 
         const msgFilter = m => m.author.id === interaction.user.id;
-        await i.reply('✏️ ارسل الاسم الجديد للمنتج:');
-        const nameMsg = await interaction.channel.awaitMessages({ filter: msgFilter, max: 1, time: 30000 });
-        const newName = nameMsg.first().content;
+        const nameCollector = interaction.channel.createMessageCollector({ filter: msgFilter, max: 1, time: 60000 });
+        nameCollector.on('collect', msg => {
+            if(msg.content !== '-') product.name = msg.content;
 
-        await interaction.followUp('📝 ارسل الوصف الجديد:');
-        const descMsg = await interaction.channel.awaitMessages({ filter: msgFilter, max: 1, time: 30000 });
-        const newDesc = descMsg.first().content;
+            interaction.channel.send('✏️ أرسل الوصف الجديد أو ضع "-" لتبقي كما هو:');
+            const descCollector = interaction.channel.createMessageCollector({ filter: msgFilter, max: 1, time: 60000 });
+            descCollector.on('collect', msg2 => {
+                if(msg2.content !== '-') product.desc = msg2.content;
 
-        await interaction.followUp('💰 ارسل السعر الجديد:');
-        const priceMsg = await interaction.channel.awaitMessages({ filter: msgFilter, max: 1, time: 30000 });
-        const newPrice = priceMsg.first().content;
+                interaction.channel.send('💰 أرسل السعر الجديد أو ضع "-" لتبقي كما هو:');
+                const priceCollector = interaction.channel.createMessageCollector({ filter: msgFilter, max: 1, time: 60000 });
+                priceCollector.on('collect', msg3 => {
+                    if(msg3.content !== '-') product.price = msg3.content;
 
-        // تعديل الرسالة الأصلية
-        try {
-            const config = require('../utils/jsonHandler').loadConfig();
-            const channel = await client.channels.fetch(config.STORE_CHANNEL_ID);
-            const msg = await channel.messages.fetch(product.messageId);
-            const embed = new EmbedBuilder()
-                .setTitle(newName)
-                .setDescription(newDesc)
-                .setFooter({ text: `السعر: ${newPrice}` })
-                .setImage(product.images[0]);
-            await msg.edit({ embeds: [embed] });
-        } catch(err){}
+                    saveProducts(products);
 
-        product.name = newName;
-        product.description = newDesc;
-        product.price = newPrice;
-        saveProducts(products);
+                    const STORE_CHANNEL_ID = loadConfig().STORE_CHANNEL_ID;
+                    const storeChannel = client.channels.cache.get(STORE_CHANNEL_ID);
+                    if(storeChannel){
+                        const embed = new EmbedBuilder()
+                            .setTitle(product.name)
+                            .setDescription(`${product.desc}\n💰 السعر: ${product.price}`)
+                            .setColor('Green')
+                            .setImage(product.images[0]);
 
-        logEvent(client, 'تعديل منتج', `تم تعديل المنتج: ${newName} بواسطة ${interaction.user.tag}`);
-        i.followUp({ content: '✅ تم تعديل المنتج بنجاح!', ephemeral: true });
+                        storeChannel.send({ embeds: [embed] });
+                    }
+
+                    interaction.channel.send('✅ تم تعديل المنتج بنجاح!');
+                });
+            });
+        });
     });
 };

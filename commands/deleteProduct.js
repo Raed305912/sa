@@ -1,42 +1,31 @@
 const { loadProducts, saveProducts } = require('../utils/jsonHandler');
-const logEvent = require('./logEvent');
+const { ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
 
-module.exports = async function deleteProduct(interaction, client) {
+module.exports = async function deleteProduct(interaction, client){
     const products = loadProducts();
-    if(products.length === 0) return interaction.reply({ content: '🚫 لا توجد منتجات.', ephemeral: true });
+    if(products.length === 0) return interaction.reply({ content: '🚫 لا يوجد منتجات للحذف.', ephemeral: true });
 
-    let options = products.map(p => ({ label: p.name, value: p.id }));
-    const { ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
-
-    const menu = new ActionRowBuilder().addComponents(
+    const options = products.map(p => ({ label: p.name, value: p.id.toString() }));
+    const row = new ActionRowBuilder().addComponents(
         new StringSelectMenuBuilder()
-            .setCustomId('delete_product_select')
+            .setCustomId('select_delete_product')
             .setPlaceholder('اختر المنتج للحذف')
             .addOptions(options)
     );
 
-    await interaction.reply({ content: 'اختر المنتج للحذف:', components: [menu], ephemeral: true });
+    await interaction.reply({ content: '🗑️ اختر المنتج للحذف:', components: [row], ephemeral: true });
 
-    const filter = i => i.user.id === interaction.user.id && i.customId === 'delete_product_select';
-    const collector = interaction.channel.createMessageComponentCollector({ filter, max: 1, time: 60000 });
+    const filter = i => i.user.id === interaction.user.id && i.customId === 'select_delete_product';
+    const collector = interaction.channel.createMessageComponentCollector({ filter, time: 60000, max: 1 });
 
-    collector.on('collect', async i => {
-        const product = products.find(p => p.id === i.values[0]);
-        if(!product) return i.reply({ content: '🚫 المنتج غير موجود', ephemeral: true });
+    collector.on('collect', i => {
+        const productId = i.values[0];
+        const index = products.findIndex(p => p.id.toString() === productId);
+        if(index === -1) return i.update({ content: '🚫 لم يتم العثور على المنتج.', components: [] });
 
-        // حذف رسالة المنتج الأصلية
-        try {
-            const config = require('../utils/jsonHandler').loadConfig();
-            const channel = await client.channels.fetch(config.STORE_CHANNEL_ID);
-            const msg = await channel.messages.fetch(product.messageId);
-            await msg.delete();
-        } catch(err){}
-
-        const index = products.indexOf(product);
-        products.splice(index, 1);
+        const removed = products.splice(index, 1)[0];
         saveProducts(products);
 
-        logEvent(client, 'حذف منتج', `تم حذف المنتج: ${product.name} بواسطة ${interaction.user.tag}`);
-        i.reply({ content: '✅ تم حذف المنتج بنجاح!', ephemeral: true });
+        i.update({ content: `✅ تم حذف المنتج: **${removed.name}**`, components: [] });
     });
 };
