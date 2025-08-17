@@ -1,30 +1,17 @@
 const fs = require('fs');
+const path = require('path');
 
-function loadProducts() {
-    if(!fs.existsSync('./products.json')) fs.writeFileSync('./products.json', '[]');
-    return JSON.parse(fs.readFileSync('./products.json', 'utf8'));
-}
+const PRODUCTS_FILE = path.join(__dirname, '../products.json');
+const ADMINS_FILE = path.join(__dirname, '../admins.json');
+const CONFIG_FILE = path.join(__dirname, '../config.json');
 
-function saveProducts(data) {
-    fs.writeFileSync('./products.json', JSON.stringify(data, null, 2));
-}
+module.exports = {
+    loadProducts: () => JSON.parse(fs.readFileSync(PRODUCTS_FILE, 'utf8') || '[]'),
+    saveProducts: (data) => fs.writeFileSync(PRODUCTS_FILE, JSON.stringify(data, null, 2)),
 
-function loadAdmins() {
-    if(!fs.existsSync('./admins.json')) fs.writeFileSync('./admins.json', '{"admins":[],"superAdmins":[]}');
-    return JSON.parse(fs.readFileSync('./admins.json', 'utf8'));
-}
+    loadAdmins: () => JSON.parse(fs.readFileSync(ADMINS_FILE, 'utf8') || '{"admins":[],"superAdmins":[]}'),
+    saveAdmins: (data) => fs.writeFileSync(ADMINS_FILE, JSON.stringify(data, null, 2)),
 
-function saveAdmins(data) {
-    fs.writeFileSync('./admins.json', JSON.stringify(data, null, 2));
-}
-
-function loadConfig() {
-    if(!fs.existsSync('./config.json')) fs.writeFileSync('./config.json', '{}');
-    return JSON.parse(fs.readFileSync('./config.json', 'utf8'));
-}
-
-function saveConfig(data) {
-    fs.writeFileSync('./config.json', JSON.stringify(data, null, 2));
-}
-
-module.exports = { loadProducts, saveProducts, loadAdmins, saveAdmins, loadConfig, saveConfig };
+    loadConfig: () => JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8') || '{}'),
+    saveConfig: (data) => fs.writeFileSync(CONFIG_FILE, JSON.stringify(data, null, 2))
+};

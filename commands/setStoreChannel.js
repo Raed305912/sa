@@ -1,29 +1,25 @@
+const { StringSelectMenuBuilder, ActionRowBuilder } = require('discord.js');
 const { loadConfig, saveConfig } = require('../utils/jsonHandler');
-const { ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
 
 module.exports = async function setStoreChannel(interaction){
-    const channels = interaction.guild.channels.cache
-        .filter(c => c.isTextBased())
-        .map(c => ({ label: c.name, value: c.id }));
+    const channels = interaction.guild.channels.cache.filter(c => c.isTextBased());
+    const options = channels.map(c => ({ label: c.name, value: c.id })).slice(0, 25);
 
-    const row = new ActionRowBuilder().addComponents(
-        new StringSelectMenuBuilder()
-            .setCustomId('select_store_channel')
-            .setPlaceholder('اختر قناة المتجر')
-            .addOptions(channels.slice(0,25))
-    );
+    const row = new ActionRowBuilder()
+        .addComponents(
+            new StringSelectMenuBuilder()
+                .setCustomId('store_channel_select')
+                .setPlaceholder('اختر قناة المتجر')
+                .addOptions(options)
+        );
 
-    await interaction.reply({ content: '📌 اختر قناة المتجر:', components: [row], ephemeral: true });
+    interaction.reply({ content: 'اختر قناة المتجر:', components: [row], ephemeral: true });
 
-    const filter = i => i.user.id === interaction.user.id && i.customId === 'select_store_channel';
-    const collector = interaction.channel.createMessageComponentCollector({ filter, time: 60000, max: 1 });
+    const filter = i => i.customId === 'store_channel_select' && i.user.id === interaction.user.id;
+    const collector = interaction.channel.createMessageComponentCollector({ filter, time: 15000 });
 
     collector.on('collect', i => {
-        const channelId = i.values[0];
-        const config = loadConfig();
-        config.STORE_CHANNEL_ID = channelId;
-        saveConfig(config);
-
-        i.update({ content: `✅ تم تعيين قناة المتجر: <#${channelId}>`, components: [] });
+        saveConfig({ ...loadConfig(), STORE_CHANNEL_ID: i.values[0] });
+        i.update({ content: `✅ تم تعيين قناة المتجر: <#${i.values[0]}>`, components: [] });
     });
 };

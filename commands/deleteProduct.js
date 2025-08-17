@@ -1,31 +1,20 @@
-const { loadProducts, saveProducts } = require('../utils/jsonHandler');
-const { ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
+const { loadProducts, saveProducts, loadConfig } = require('../utils/jsonHandler');
 
-module.exports = async function deleteProduct(interaction, client){
+module.exports = async function deleteProduct(interaction){
     const products = loadProducts();
-    if(products.length === 0) return interaction.reply({ content: '🚫 لا يوجد منتجات للحذف.', ephemeral: true });
 
-    const options = products.map(p => ({ label: p.name, value: p.id.toString() }));
-    const row = new ActionRowBuilder().addComponents(
-        new StringSelectMenuBuilder()
-            .setCustomId('select_delete_product')
-            .setPlaceholder('اختر المنتج للحذف')
-            .addOptions(options)
-    );
+    if(products.length === 0) return interaction.reply({ content: '🚫 لا يوجد منتجات للحذف', ephemeral: true });
 
-    await interaction.reply({ content: '🗑️ اختر المنتج للحذف:', components: [row], ephemeral: true });
+    const options = products.map(p => ({ label: p.name, value: p.id.toString() })).slice(0, 25);
+    const row = new require('discord.js').ActionRowBuilder()
+        .addComponents(
+            new require('discord.js').StringSelectMenuBuilder()
+                .setCustomId('delete_product_select')
+                .setPlaceholder('اختر المنتج للحذف')
+                .addOptions(options)
+        );
 
-    const filter = i => i.user.id === interaction.user.id && i.customId === 'select_delete_product';
-    const collector = interaction.channel.createMessageComponentCollector({ filter, time: 60000, max: 1 });
+    interaction.reply({ content: 'اختر المنتج للحذف:', components: [row], ephemeral: true });
 
-    collector.on('collect', i => {
-        const productId = i.values[0];
-        const index = products.findIndex(p => p.id.toString() === productId);
-        if(index === -1) return i.update({ content: '🚫 لم يتم العثور على المنتج.', components: [] });
-
-        const removed = products.splice(index, 1)[0];
-        saveProducts(products);
-
-        i.update({ content: `✅ تم حذف المنتج: **${removed.name}**`, components: [] });
-    });
+    // بعد اختيار المنتج، احذف الرسالة من قناة المتجر
 };

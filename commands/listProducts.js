@@ -1,21 +1,23 @@
 const { loadProducts } = require('../utils/jsonHandler');
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
-module.exports = async function listProducts(interaction, client, search){
-    let products = loadProducts();
-    if(search) products = products.filter(p => p.name.includes(search));
+module.exports = async function listProducts(interaction, client, isAdminView){
+    const products = loadProducts();
+    if(products.length === 0) return interaction.reply({ content: '🚫 لا يوجد منتجات حالياً', ephemeral: true });
 
-    if(products.length === 0) return interaction.reply({ content: '🚫 لا يوجد منتجات لعرضها.', ephemeral: true });
-
+    // عرض أول منتج كبدء
+    const product = products[0];
     const embed = new EmbedBuilder()
-        .setTitle('📦 قائمة المنتجات')
-        .setColor('Blue');
+        .setTitle(product.name)
+        .setDescription(`${product.desc}\n💰 السعر: ${product.price}`)
+        .setImage(product.images[0]);
 
-    let description = '';
-    products.forEach((p, idx) => {
-        description += `**${idx+1}. ${p.name}** - 💰 ${p.price}\n`;
-    });
+    const row = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder().setCustomId(`prev_${product.id}_0`).setLabel('◀️').setStyle(ButtonStyle.Primary),
+            new ButtonBuilder().setCustomId(`next_${product.id}_0`).setLabel('▶️').setStyle(ButtonStyle.Primary),
+            new ButtonBuilder().setLabel('تواصل مع البائع').setStyle(ButtonStyle.Link).setURL(`https://discord.com/users/${process.env.DEVELOPER_ID}`)
+        );
 
-    embed.setDescription(description);
-    interaction.reply({ embeds: [embed], ephemeral: true });
+    interaction.reply({ embeds: [embed], components: [row] });
 };
