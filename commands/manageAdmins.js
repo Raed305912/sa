@@ -1,44 +1,37 @@
+const { loadAdmins, saveAdmins } = require('../utils/jsonHandler');
 const { ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
-const fs = require('fs');
-const ADMINS_FILE = './admins.json';
+const logEvent = require('./logEvent');
 
-function loadAdmins() {
-    if(!fs.existsSync(ADMINS_FILE)) return { admins: [], superAdmins: [] };
-    return JSON.parse(fs.readFileSync(ADMINS_FILE, 'utf8'));
-}
-
-function saveAdmins(data) {
-    fs.writeFileSync(ADMINS_FILE, JSON.stringify(data, null, 2));
-}
-
-module.exports = async function manageAdmins(interaction, type) {
+module.exports = async function manageAdmins(interaction, type, client) {
     if(interaction.user.id !== process.env.OWNER_ID) return interaction.reply({ content: '🚫 ليس لديك صلاحية.', ephemeral: true });
 
-    const guild = interaction.guild;
-    const members = await guild.members.fetch();
-    const options = members.map(m => ({ label: m.user.username, value: m.user.id }));
+    const members = await interaction.guild.members.fetch();
+    const options = members.map(m => ({ label: m.user.tag, value: m.user.id }));
 
     const menu = new ActionRowBuilder().addComponents(
         new StringSelectMenuBuilder()
-            .setCustomId('admin_select')
-            .setPlaceholder(`اختر الشخص ليصبح ${type}`)
+            .setCustomId(`manage_${type}`)
+            .setPlaceholder(`اختر ${type}`)
             .addOptions(options)
     );
 
-    await interaction.reply({ content: `اختر الشخص ليصبح ${type}:`, components: [menu], ephemeral: true });
+    await interaction.reply({ content: `اختر ${type} ليتم إضافته:`, components: [menu], ephemeral: true });
 
-    const filter = i => i.user.id === interaction.user.id && i.customId === 'admin_select';
+    const filter = i => i.user.id === interaction.user.id;
     const collector = interaction.channel.createMessageComponentCollector({ filter, max: 1, time: 60000 });
 
     collector.on('collect', i => {
-        const selectedId = i.values[0];
-        const data = loadAdmins();
+        const admins = loadAdmins();
+        const id = i.values[0];
+
         if(type === 'ادمن') {
-            if(!data.admins.includes(selectedId)) data.admins.push(selectedId);
+            if(!admins.admins.includes(id)) admins.admins.push(id);
         } else {
-            if(!data.superAdmins.includes(selectedId)) data.superAdmins.push(selectedId);
+            if(!admins.superAdmins.includes(id)) admins.superAdmins.push(id);
         }
-        saveAdmins(data);
+
+        saveAdmins(admins);
+        logEvent(client, `إضافة ${type}`, `تم إضافة ${type}: <@${id}> بواسطة ${interaction.user.tag}`);
         i.reply({ content: `✅ تم إضافة ${type} بنجاح!`, ephemeral: true });
     });
 };

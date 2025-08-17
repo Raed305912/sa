@@ -1,32 +1,42 @@
-const { ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
 const { loadProducts, saveProducts } = require('../utils/jsonHandler');
+const logEvent = require('./logEvent');
 
-module.exports = async function deleteProduct(interaction) {
-    if(interaction.user.id !== process.env.OWNER_ID) return interaction.reply({ content: '🚫 ليس لديك صلاحية.', ephemeral: true });
-
+module.exports = async function deleteProduct(interaction, client) {
     const products = loadProducts();
-    if(products.length === 0) return interaction.reply({ content: '🚫 لا يوجد منتجات.', ephemeral: true });
+    if(products.length === 0) return interaction.reply({ content: '🚫 لا توجد منتجات.', ephemeral: true });
+
+    let options = products.map(p => ({ label: p.name, value: p.id }));
+    const { ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
 
     const menu = new ActionRowBuilder().addComponents(
         new StringSelectMenuBuilder()
-            .setCustomId('delete_select')
+            .setCustomId('delete_product_select')
             .setPlaceholder('اختر المنتج للحذف')
-            .addOptions(products.map(p => ({ label: p.name, value: p.id })))
+            .addOptions(options)
     );
 
     await interaction.reply({ content: 'اختر المنتج للحذف:', components: [menu], ephemeral: true });
 
-    const filter = i => i.user.id === interaction.user.id && i.customId === 'delete_select';
-    const collector = interaction.channel.createMessageComponentCollector({ filter, time: 60000 });
+    const filter = i => i.user.id === interaction.user.id && i.customId === 'delete_product_select';
+    const collector = interaction.channel.createMessageComponentCollector({ filter, max: 1, time: 60000 });
 
-    collector.on('collect', i => {
-        const index = products.findIndex(p => p.id === i.values[0]);
-        if(index !== -1) {
-            products.splice(index, 1);
-            saveProducts(products);
-            i.reply({ content: '✅ تم حذف المنتج بنجاح!', ephemeral: true });
-        } else {
-            i.reply({ content: '❌ خطأ', ephemeral: true });
-        }
+    collector.on('collect', async i => {
+        const product = products.find(p => p.id === i.values[0]);
+        if(!product) return i.reply({ content: '🚫 المنتج غير موجود', ephemeral: true });
+
+        // حذف رسالة المنتج الأصلية
+        try {
+            const config = require('../utils/jsonHandler').loadConfig();
+            const channel = await client.channels.fetch(config.STORE_CHANNEL_ID);
+            const msg = await channel.messages.fetch(product.messageId);
+            await msg.delete();
+        } catch(err){}
+
+        const index = products.indexOf(product);
+        products.splice(index, 1);
+        saveProducts(products);
+
+        logEvent(client, 'حذف منتج', `تم حذف المنتج: ${product.name} بواسطة ${interaction.user.tag}`);
+        i.reply({ content: '✅ تم حذف المنتج بنجاح!', ephemeral: true });
     });
 };
